@@ -1,0 +1,36 @@
+name: Daily News Summary
+
+on:
+  schedule:
+    # 設定執行時間 (使用 UTC 時間)
+    # 這裡設定為每天 UTC 23:00 (即台灣時間早上 07:00)
+    - cron: '0 23 * * *'
+  
+  # 允許手動點擊按鈕執行 (這是為了讓你等一下可以馬上測試)
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run news bot
+      env:
+        # 這裡會從你剛設定好的 Secrets 讀取密碼，注入到程式環境中
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
+        GOOGLE_APP_PASSWORD: ${{ secrets.GOOGLE_APP_PASSWORD }}
+      run: python news_bot.py
