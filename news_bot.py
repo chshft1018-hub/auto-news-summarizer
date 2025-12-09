@@ -35,6 +35,13 @@ def summarize_text(text):
         return None
 
 def main():
+    # --- 新增這段除錯代碼 (開始) ---
+    print("=== 帳號資料檢查 ===")
+    print(f"Email 設定為: [{GOOGLE_EMAIL}]")  # 前後加了括號，如果有空白鍵馬上就會發現！
+    print(f"密碼長度為: {len(GOOGLE_APP_PASSWORD) if GOOGLE_APP_PASSWORD else 0} 個字")
+    print("==================")
+    # --- 新增這段除錯代碼 (結束) ---
+    
     if not GEMINI_API_KEY or not GOOGLE_APP_PASSWORD:
         print("錯誤：找不到環境變數，請確認 GitHub Secrets 設定是否正確。")
         return
@@ -89,3 +96,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+
