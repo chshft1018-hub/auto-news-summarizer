@@ -14,7 +14,7 @@ LINE_USER_ID = os.environ.get("LINE_USER_ID")
 
 # --- 初始化 Gemini ---
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-pro')
 
 def send_line_push(msg):
     """使用 LINE Messaging API 推播訊息 (替代 Notify)"""
@@ -93,3 +93,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
