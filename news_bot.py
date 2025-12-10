@@ -1,28 +1,56 @@
 import feedparser
 import google.generativeai as genai
-import gkeepapi
+import requests
+import os
 import time
-import os  # 新增這個，用來讀取環境變數
+import json
 
-# --- 設定區域 (修改為讀取環境變數) ---
-# 這些變數我們等一下會在 GitHub 網站上設定，不要寫死在這裡
+# --- 設定區域 ---
 RSS_URL = "https://feeds.bbci.co.uk/zhongwen/trad/rss.xml" 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GOOGLE_EMAIL = os.environ.get("GOOGLE_EMAIL")
-GOOGLE_APP_PASSWORD = os.environ.get("GOOGLE_APP_PASSWORD")
+# 改用 Messaging API 需要這兩個變數
+LINE_ACCESS_TOKEN = os.environ.get("LINE_ACCESS_TOKEN")
+LINE_USER_ID = os.environ.get("LINE_USER_ID")
 
 # --- 初始化 Gemini ---
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
+def send_line_push(msg):
+    """使用 LINE Messaging API 推播訊息 (替代 Notify)"""
+    url = "https://api.line.me/v2/bot/message/push"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + LINE_ACCESS_TOKEN
+    }
+    payload = {
+        "to": LINE_USER_ID,
+        "messages": [
+            {
+                "type": "text",
+                "text": msg
+            }
+        ]
+    }
+    try:
+        r = requests.post(url, headers=headers, data=json.dumps(payload))
+        if r.status_code == 200:
+            print("✅ LINE 訊息推播成功！")
+        else:
+            print(f"❌ 推播失敗 (Code: {r.status_code}): {r.text}")
+    except Exception as e:
+        print(f"❌ 連線錯誤: {e}")
+
 def summarize_text(text):
-    # (這部分與之前相同，略過不重複顯示以節省篇幅)
+    """請 Gemini 做摘要"""
     prompt = f"""
-    請幫我摘要這則新聞，請使用繁體中文。
+    請幫我摘要這則新聞，適合在 LINE 手機上閱讀。
+    
     格式要求：
-    1. 用一句話說明主旨 (加粗)。
-    2. 列出 3 個關鍵重點 (條列式)。
-    3. 語氣客觀專業。
+    1. 第一行只要新聞標題。
+    2. 下面列出 3 個重點 (使用條列式)。
+    3. 總字數控制在 200 字以內。
+    4. 不要使用 markdown 語法 (如 ** 或 ##)。
     
     新聞內容：
     {text}
@@ -35,65 +63,33 @@ def summarize_text(text):
         return None
 
 def main():
-    # --- 新增這段除錯代碼 (開始) ---
-    print("=== 帳號資料檢查 ===")
-    print(f"Email 設定為: [{GOOGLE_EMAIL}]")  # 前後加了括號，如果有空白鍵馬上就會發現！
-    print(f"密碼長度為: {len(GOOGLE_APP_PASSWORD) if GOOGLE_APP_PASSWORD else 0} 個字")
-    print("==================")
-    # --- 新增這段除錯代碼 (結束) ---
-    
-    if not GEMINI_API_KEY or not GOOGLE_APP_PASSWORD:
-        print("錯誤：找不到環境變數，請確認 GitHub Secrets 設定是否正確。")
+    if not LINE_ACCESS_TOKEN or not LINE_USER_ID:
+        print("錯誤：找不到 LINE 設定，請檢查 GitHub Secrets (LINE_ACCESS_TOKEN, LINE_USER_ID)。")
         return
 
     print("正在讀取 RSS...")
     feed = feedparser.parse(RSS_URL)
     
-    print("正在登入 Google Keep...")
-    keep = gkeepapi.Keep()
-    
-    # 這裡加入一個嘗試恢復 token 的機制會更穩定，但為了簡單，我們先直接登入
-    try:
-        success = keep.login(GOOGLE_EMAIL, GOOGLE_APP_PASSWORD)
-    except Exception as e:
-        print(f"登入發生錯誤: {e}")
-        return
+    print(f"共抓到 {len(feed.entries)} 則新聞，準備處理最新的 1 則...")
 
-    if not success:
-        print("Google Keep 登入失敗")
-        return
-
-    # 讀取最新的 3 則 (避免超時)
-    for entry in feed.entries[:3]:
+    for entry in feed.entries[:1]:
         title = entry.title
         link = entry.link
         content = entry.summary if 'summary' in entry else entry.title 
         
         print(f"正在處理：{title}")
         
-        # 簡單防重複檢查
-        existing_notes = keep.find(query=title)
-        if any(n for n in existing_notes):
-            print(" - 跳過 (已存在)")
-            continue
-
         summary = summarize_text(content)
         
         if summary:
-            note_body = f"{summary}\n\n原文連結：{link}"
-            note = keep.createNote(title, note_body)
-            note.color = gkeepapi.node.ColorValue.TEAL
-            note.labels.add('AI News') 
-            print(" - 筆記已建立")
-            time.sleep(2)
+            # 組合訊息
+            line_message = f"📰 {summary}\n\n🔗 {link}"
+            
+            # 發送！
+            send_line_push(line_message)
+            time.sleep(1) 
         else:
             print(" - 摘要失敗")
 
-    print("正在同步到 Google Keep...")
-    keep.sync()
-    print("完成！")
-
 if __name__ == "__main__":
-
     main()
-
